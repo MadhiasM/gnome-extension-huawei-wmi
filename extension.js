@@ -9,6 +9,7 @@ import Shell from 'gi://Shell';
 import GObject from 'gi://GObject';
 import UPower from 'gi://UPowerGlib';
 
+import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -123,6 +124,15 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		Main.wm.removeKeybinding('hwmi-camera-inserted');
 	}
 
+	_show_osd(icon, text) {
+		icon = Gio.icon_new_for_string(icon);
+
+		if (Config.PACKAGE_VERSION >= '49')
+			Main.osdWindowManager.showAll(icon, text);
+		else
+			Main.osdWindowManager.show(-1, icon, text);
+	}
+
 	_fullscreen_changed() {
 		let file = Gio.File.new_for_path("/sys/devices/platform/huawei-wmi/kbdlight_timeout");
 
@@ -149,30 +159,15 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 
 		if (!this._power_unlock.visible) return;
 
-		if (this._power_unlock.state === old_state) {
-			icon = 'battery-caution-symbolic';
-			text = _("Power Unlock\nunavailable on battery");
-		} else {
-			switch (this._power_unlock.state) {
-				case true: {
-					icon = 'power-profile-performance-symbolic';
-					text = _("Performance Mode");
-				}; break;
-
-				case false: {
-					icon = 'power-profile-balanced-symbolic';
-					text = _("Balanced Mode");
-				}; break;
-
-				default: return;
-			}
+		switch (this._power_unlock.state) {
+			case old_state: this._show_osd('battery-caution-symbolic', _("Power Unlock\nunavailable on battery")); break;
+			case true: this._show_osd('power-profile-performance-symbolic', _("Performance Mode")); break;
+			case false: this._show_osd('power-profile-balanced-symbolic', _("Balanced Mode")); break;
 		}
-
-		Main.osdWindowManager.show(-1, Gio.icon_new_for_string(icon), text);
 	}
 
 	_camera_ejected() {
-		Main.osdWindowManager.show(-1, Gio.icon_new_for_string('camera-photo-symbolic'), "Camera ejected");
+		this._show_osd('camera-photo-symbolic', _("Camera ejected"));
 
 		if (this._camera_hint_timeout === null) {
 			this._camera_hint_prev_color = Main.panel._centerBox.get_background_color();
@@ -190,7 +185,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 	}
 
 	_camera_inserted() {
-		Main.osdWindowManager.show(-1, Gio.icon_new_for_string('camera-hardware-disabled-symbolic'), "Camera inserted");
+		this._show_osd('camera-hardware-disabled-symbolic', _("Camera inserted"));
 
 		if (this._camera_hint_timeout !== null) {
 			GLib.Source.remove(this._camera_hint_timeout);
@@ -212,7 +207,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 	}
 
 	_update_fn_led() {
-		let file = Gio.File.new_for_path("/sys/devices/platform/huawei-wmi/leds/platform::fn_led/brightness");
+		let file = Gio.File.new_for_path("/sys/devices/platform/huawei-wmi/leds/huawei::fn_led/brightness");
 
 		let on;
 		try {
@@ -224,7 +219,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		if (on != this._fn_led) {
 			this._fn_led = on;
 			this.icon.set_gicon(on?this._icon_gear_lock:this._icon_gear);
-			Main.osdWindowManager.show(-1, Gio.icon_new_for_string('preferences-desktop-keyboard-shortcuts-symbolic'), `Fn-Lock ${on?'on':'off'}`);
+			this._show_osd('preferences-desktop-keyboard-shortcuts-symbolic', _(`Fn-Lock ${on?'on':'off'}`));
 		}
 	}
 
@@ -388,5 +383,5 @@ export default class HuaweiWmiExtension extends Extension {
 	}
 }
 
-// by Sdore, 2021-23
+// by Sdore, 2021-25
 //   apps.sdore.me
