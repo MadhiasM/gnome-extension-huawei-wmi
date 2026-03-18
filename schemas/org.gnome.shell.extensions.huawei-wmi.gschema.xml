@@ -7,7 +7,17 @@
 		</key>
 
 		<key name="hwmi-power-unlock" type="as">
-			<default><![CDATA[['XF86Battery']]]></default>
+			<default><![CDATA[['XF86Launch1', 'XF86Battery']]]></default>
+			<summary></summary>
+		</key>
+
+		<key name="hwmi-camera-detached" type="as">
+			<default><![CDATA[['XF86Launch2']]]></default>
+			<summary></summary>
+		</key>
+
+		<key name="hwmi-camera-attached" type="as">
+			<default><![CDATA[['XF86Launch3']]]></default>
 			<summary></summary>
 		</key>
 

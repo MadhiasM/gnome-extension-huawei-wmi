@@ -113,6 +113,8 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 	_bind_keys(settings) {
 		Main.wm.addKeybinding('hwmi-config', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.menu.toggle.bind(this.menu));
 		Main.wm.addKeybinding('hwmi-power-unlock', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._key_power_unlock.bind(this));
+		Main.wm.addKeybinding('hwmi-camera-attached', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._camera_attached.bind(this));
+		Main.wm.addKeybinding('hwmi-camera-detached', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._camera_detached.bind(this));
 		Main.wm.addKeybinding('hwmi-camera-ejected', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._camera_ejected.bind(this));
 		Main.wm.addKeybinding('hwmi-camera-inserted', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._camera_inserted.bind(this));
 	}
@@ -120,6 +122,8 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 	_unbind_keys() {
 		Main.wm.removeKeybinding('hwmi-config');
 		Main.wm.removeKeybinding('hwmi-power-unlock');
+		Main.wm.removeKeybinding('hwmi-camera-attached');
+		Main.wm.removeKeybinding('hwmi-camera-detached');
 		Main.wm.removeKeybinding('hwmi-camera-ejected');
 		Main.wm.removeKeybinding('hwmi-camera-inserted');
 	}
@@ -140,7 +144,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 			if (Main.layoutManager.primaryMonitor.inFullscreen) {
 				let t = Number(new TextDecoder().decode(file.load_contents(null)[1]));
 				if (t != 1) this._fullscreen_changed_timeout = t;
-				file.replace_contents("1", null, false, 0, null);
+				file.replace_contents("2", null, false, 0, null);
 			} else {
 				file.replace_contents(`${this._fullscreen_changed_timeout || 300}`, null, false, 0, null);
 			}
@@ -173,7 +177,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 			this._camera_hint_prev_color = Main.panel._centerBox.get_background_color();
 			Main.panel._centerBox.set_background_color(Cogl.color_from_string('#00AAD0')[1]);
 
-			this._camera_hint_timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => {
+			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
 				this._camera_hint_timeout = null;
 
 				if (this._camera_hint_prev_color !== null) {
@@ -196,6 +200,24 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 			Main.panel._centerBox.set_background_color(this._camera_hint_prev_color);
 			this._camera_hint_prev_color = null;
 		}
+	}
+
+	_camera_attached() {
+		this._show_osd('camera-photo-symbolic', _("Camera attached"));
+
+		if (this._camera_hint_timeout !== null) {
+			GLib.Source.remove(this._camera_hint_timeout);
+			this._camera_hint_timeout = null;
+		}
+
+		if (this._camera_hint_prev_color !== null) {
+			Main.panel._centerBox.set_background_color(this._camera_hint_prev_color);
+			this._camera_hint_prev_color = null;
+		}
+	}
+
+	_camera_detached() {
+		this._show_osd('camera-hardware-disabled-symbolic', _("Camera detached"));
 	}
 
 	_update() {
@@ -383,5 +405,5 @@ export default class HuaweiWmiExtension extends Extension {
 	}
 }
 
-// by Sdore, 2021-25
+// by Sdore, 2021-26
 //   apps.sdore.me
