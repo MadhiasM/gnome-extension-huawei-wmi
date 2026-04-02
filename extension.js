@@ -91,10 +91,14 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		this._fn_led_timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 250, () => this._update_fn_led() || true);
 
 		this._camera_hint_timeout = null;
-		this._camera_hint_prev_color = null;
+		this._camera_warning_icon = null;
+		this._camera_monitor_proc = null;
+		this._camera_monitor_stream = null;
+		this._camera_monitor_cancellable = null;
 
 		this._bind_keys(settings);
 
+		this._start_camera_monitor();
 		this._update();
 	}
 
@@ -104,7 +108,18 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		if (this._fullscreen_changed_s !== null) Display.disconnect(this._fullscreen_changed_s);
 		if (this._fn_led_timeout !== null) GLib.Source.remove(this._fn_led_timeout);
 		if (this._camera_hint_timeout !== null) GLib.Source.remove(this._camera_hint_timeout);
-		if (this._camera_hint_prev_color !== null) Main.panel._centerBox.set_style(null);
+
+		if (this._camera_monitor_cancellable !== null) {
+			this._camera_monitor_cancellable.cancel();
+			this._camera_monitor_cancellable = null;
+		}
+		if (this._camera_monitor_proc !== null) {
+			this._camera_monitor_proc.force_exit();
+			this._camera_monitor_proc = null;
+		}
+		this._camera_monitor_stream = null;
+
+		this._hide_camera_warning();
 
 		super.destroy();
 	}
@@ -169,37 +184,104 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		}
 	}
 
+	_start_camera_monitor() {
+		try {
+			this._camera_monitor_cancellable = new Gio.Cancellable();
+			this._camera_monitor_proc = Gio.Subprocess.new(
+				['udevadm', 'monitor', '--udev', '--subsystem-match=video4linux'],
+				Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
+			);
+			this._camera_monitor_stream = new Gio.DataInputStream({
+				base_stream: this._camera_monitor_proc.get_stdout_pipe(),
+			});
+			this._read_camera_monitor_output();
+		} catch (e) {
+			// Clean up any partially-initialised state (e.g. Subprocess created
+			// before DataInputStream constructor threw).
+			if (this._camera_monitor_proc !== null) {
+				this._camera_monitor_proc.force_exit();
+				this._camera_monitor_proc = null;
+			}
+			this._camera_monitor_stream = null;
+			if (this._camera_monitor_cancellable !== null) {
+				this._camera_monitor_cancellable.cancel();
+				this._camera_monitor_cancellable = null;
+			}
+		}
+	}
+
+	_read_camera_monitor_output() {
+		if (this._camera_monitor_stream === null) return;
+
+		this._camera_monitor_stream.read_line_async(
+			GLib.PRIORITY_DEFAULT_IDLE,
+			this._camera_monitor_cancellable,
+			(stream, result) => {
+				try {
+					let [line] = stream.read_line_finish_utf8(result);
+					if (line !== null) {
+						this._process_udev_line(line);
+						this._read_camera_monitor_output();
+					}
+				} catch (e) {
+					// Cancelled or I/O error — stop reading
+				}
+			}
+		);
+	}
+
+	_process_udev_line(line) {
+		// Only handle actual event lines: "UDEV  [timestamp] action   /path (subsystem)"
+		if (!line.startsWith('UDEV  [')) return;
+		// Only react to USB cameras; built-in camera modules use keybinding events
+		if (!line.includes('/usb')) return;
+
+		if (line.includes('] add ')) this._camera_attached();
+		else if (line.includes('] remove ')) this._camera_detached();
+	}
+
+	_show_camera_warning() {
+		if (this._camera_warning_icon !== null) return;
+
+		this._camera_warning_icon = new St.BoxLayout({
+			style: 'background-color: #DD2200; border-radius: 4px;',
+			style_class: 'panel-status-menu-box',
+		});
+		this._camera_warning_icon.add_child(new St.Icon({
+			icon_name: 'camera-disabled-symbolic',
+			style_class: 'system-status-icon',
+		}));
+		Main.panel._rightBox.insert_child_at_index(this._camera_warning_icon, 0);
+	}
+
+	_hide_camera_warning() {
+		if (this._camera_warning_icon === null) return;
+		Main.panel._rightBox.remove_child(this._camera_warning_icon);
+		this._camera_warning_icon.destroy();
+		this._camera_warning_icon = null;
+	}
+
 	_camera_ejected() {
 		this._show_osd('camera-photo-symbolic', _("Camera ejected"));
 
 		if (this._camera_hint_timeout === null) {
-			this._camera_hint_prev_color = Main.panel._centerBox.get_background_color();
-			Main.panel._centerBox.set_style('background-color: #00AAD0;');
-
 			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
 				this._camera_hint_timeout = null;
-
-				if (this._camera_hint_prev_color !== null) {
-					Main.panel._centerBox.set_style(null);
-					this._camera_hint_prev_color = null;
-				}
+				this._show_camera_warning();
 				return GLib.SOURCE_REMOVE;
 			});
 		}
 	}
 
 	_camera_inserted() {
-		this._show_osd('camera-hardware-disabled-symbolic', _("Camera inserted"));
+		this._show_osd('camera-photo-symbolic', _("Camera inserted"));
 
 		if (this._camera_hint_timeout !== null) {
 			GLib.Source.remove(this._camera_hint_timeout);
 			this._camera_hint_timeout = null;
 		}
 
-		if (this._camera_hint_prev_color !== null) {
-			Main.panel._centerBox.set_style(null);
-			this._camera_hint_prev_color = null;
-		}
+		this._hide_camera_warning();
 	}
 
 	_camera_attached() {
@@ -210,14 +292,19 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 			this._camera_hint_timeout = null;
 		}
 
-		if (this._camera_hint_prev_color !== null) {
-			Main.panel._centerBox.set_style(null);
-			this._camera_hint_prev_color = null;
-		}
+		this._hide_camera_warning();
 	}
 
 	_camera_detached() {
 		this._show_osd('camera-hardware-disabled-symbolic', _("Camera detached"));
+
+		if (this._camera_hint_timeout === null) {
+			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
+				this._camera_hint_timeout = null;
+				this._show_camera_warning();
+				return GLib.SOURCE_REMOVE;
+			});
+		}
 	}
 
 	_update() {
