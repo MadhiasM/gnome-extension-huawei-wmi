@@ -38,6 +38,8 @@ const BLUE_GLOW_STYLE = `
     border: none;
 `;
 
+const BLUE_GLOW_BLINKING_INTERVAL = 1000;
+
 const CAMERA_NOTIFICATION_DURATION = 10;
 
 const CAMERA_ICONS = {
@@ -189,7 +191,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		this._fn_led_timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 250, () => this._update_fn_led() || true);
 
 		this._camera_hint_timeout = null;
-		this._camera_hint_prev_color = null;
+		this._camera_blink_timer = null;
 
 		this._bind_keys(settings);
 
@@ -201,8 +203,9 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 
 		if (this._fullscreen_changed_s !== null) Display.disconnect(this._fullscreen_changed_s);
 		if (this._fn_led_timeout !== null) GLib.Source.remove(this._fn_led_timeout);
+		if (this._camera_blink_timer) GLib.Source.remove(this._camera_blink_timer);
 		if (this._camera_hint_timeout !== null) GLib.Source.remove(this._camera_hint_timeout);
-		if (this._camera_hint_prev_color !== null) Main.panel._centerBox.set_style(null);
+		Main.panel._centerBox.set_style(null);
 
 		super.destroy();
 	}
@@ -270,17 +273,23 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 	_camera_ejected() {
 		this._show_osd(CAMERA_ICONS.EJECTED, _("Camera ejected"));
 
-		if (this._camera_hint_timeout === null) {
-			this._camera_hint_prev_color = Main.panel._centerBox.get_background_color();
-			Main.panel._centerBox.set_style(BLUE_GLOW_STYLE);
+    if (this._camera_hint_timeout === null) {
+      let isGlowVisible = true;
+      Main.panel._centerBox.set_style(BLUE_GLOW_STYLE);
+
+      this._camera_blink_timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, BLUE_GLOW_BLINKING_INTERVAL, () => {
+          isGlowVisible = !isGlowVisible;
+          Main.panel._centerBox.set_style(isGlowVisible ? BLUE_GLOW_STYLE : null);
+          return GLib.SOURCE_CONTINUE;
+      });
 
 			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, CAMERA_NOTIFICATION_DURATION, () => {
+				if (this._camera_blink_timer) {
+          GLib.Source.remove(this._camera_blink_timer);
+          this._camera_blink_timer = null;
+        }
 				this._camera_hint_timeout = null;
-
-				if (this._camera_hint_prev_color !== null) {
-					Main.panel._centerBox.set_style(null);
-					this._camera_hint_prev_color = null;
-				}
+				Main.panel._centerBox.set_style(null);
 				return GLib.SOURCE_REMOVE;
 			});
 		}
@@ -296,10 +305,12 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 			this._camera_hint_timeout = null;
 		}
 
-		if (this._camera_hint_prev_color !== null) {
-			Main.panel._centerBox.set_style(null);
-			this._camera_hint_prev_color = null;
-		}
+		if (this._camera_blink_timer) {
+			GLib.Source.remove(this._camera_blink_timer);
+			this._camera_blink_timer = null;
+    }
+
+		Main.panel._centerBox.set_style(null);
 
 		this._camera_indicator?.show_info(CAMERA_ICONS.INSERTED);
 	}
@@ -312,10 +323,12 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 			this._camera_hint_timeout = null;
 		}
 
-		if (this._camera_hint_prev_color !== null) {
-			Main.panel._centerBox.set_style(null);
-			this._camera_hint_prev_color = null;
+		if (this._camera_blink_timer) {
+			GLib.Source.remove(this._camera_blink_timer);
+			this._camera_blink_timer = null;
 		}
+
+		Main.panel._centerBox.set_style(null);
 
 		this._camera_indicator?.show_highlight(CAMERA_ICONS.ATTACHED);
 	}
