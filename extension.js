@@ -31,6 +31,13 @@ class NonClosingPopupSwitchMenuItem extends PopupMenu.PopupSwitchMenuItem {
 	}
 });
 
+const BLUE_GLOW_STYLE = `
+    background-color: rgba(0, 0, 0, 0.2);
+    box-shadow: inset 0 8px 6px -4px rgba(0, 200, 255, 0.9);
+    border-radius: 0 0 99px 99px;
+    border: none;
+`;
+
 const CAMERA_NOTIFICATION_DURATION = 10;
 
 const CAMERA_ICONS = {
@@ -41,10 +48,10 @@ const CAMERA_ICONS = {
     DEFAULT: 'camera-photo-symbolic'
 };
 
-const COLOR_HIGHLIGHT = '#3D7FFF'
-const COLOR_WARNING = '#EB642A'
-const COLOR_HINT = '#828284'
-const COLOR_INFO = null
+const COLOR_HIGHLIGHT = '#3D7FFF';
+const COLOR_WARNING = '#EB642A';
+const COLOR_HINT = '#828284';
+const COLOR_INFO = null;
 
 const CameraIndicator = GObject.registerClass(
 class CameraIndicator extends PanelMenu.Button {
@@ -265,7 +272,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 
 		if (this._camera_hint_timeout === null) {
 			this._camera_hint_prev_color = Main.panel._centerBox.get_background_color();
-			Main.panel._centerBox.set_style('background-color: #00AAD0;');
+			Main.panel._centerBox.set_style(BLUE_GLOW_STYLE);
 
 			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, CAMERA_NOTIFICATION_DURATION, () => {
 				this._camera_hint_timeout = null;
