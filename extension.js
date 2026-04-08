@@ -290,6 +290,10 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
         }
 				this._camera_hint_timeout = null;
 				Main.panel._centerBox.set_style(null);
+
+        this._camera_indicator?.show_warning(CAMERA_ICONS.EJECTED);
+        this._show_osd(CAMERA_ICONS.EJECTED, _("No Camera detected"));
+
 				return GLib.SOURCE_REMOVE;
 			});
 		}
@@ -337,6 +341,15 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		this._show_osd(CAMERA_ICONS.DETACHED, _("Camera detached"));
 
 		this._camera_indicator?.show_hint(CAMERA_ICONS.DETACHED);
+
+  		if (this._camera_hint_timeout === null) {
+			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, CAMERA_NOTIFICATION_DURATION, () => {
+				this._camera_hint_timeout = null;
+				this._camera_indicator?.show_warning(CAMERA_ICONS.DETACHED);
+				this._show_osd(CAMERA_ICONS.DETACHED, _("No Camera detected"));
+				return GLib.SOURCE_REMOVE;
+			});
+		}
 	}
 
 	_update() {
