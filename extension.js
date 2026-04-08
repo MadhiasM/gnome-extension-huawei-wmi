@@ -32,7 +32,7 @@ class NonClosingPopupSwitchMenuItem extends PopupMenu.PopupSwitchMenuItem {
 });
 
 const BLUE_GLOW_STYLE = `
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: transparent;
     box-shadow: inset 0 8px 6px -4px rgba(0, 200, 255, 0.9);
     border-radius: 0 0 99px 99px;
     border: none;
