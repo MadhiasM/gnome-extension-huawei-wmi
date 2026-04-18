@@ -32,10 +32,10 @@ class NonClosingPopupSwitchMenuItem extends PopupMenu.PopupSwitchMenuItem {
 });
 
 const BLUE_GLOW_STYLE = `
-    background-color: transparent;
-    box-shadow: inset 0 8px 6px -4px rgba(0, 200, 255, 0.9);
-    border-radius: 0 0 99px 99px;
-    border: none;
+	background-color: transparent;
+	box-shadow: inset 0 8px 6px -4px rgba(0, 200, 255, 0.9);
+	border-radius: 0 0 99px 99px;
+	border: none;
 `;
 
 const BLUE_GLOW_BLINKING_INTERVAL = 1000;
@@ -43,11 +43,11 @@ const BLUE_GLOW_BLINKING_INTERVAL = 1000;
 const CAMERA_NOTIFICATION_DURATION = 10;
 
 const CAMERA_ICONS = {
-    EJECTED: 'camera-photo-symbolic',
-    INSERTED: 'camera-hardware-disabled-symbolic',
-    ATTACHED: 'camera-photo-symbolic',
-    DETACHED: 'camera-hardware-disabled-symbolic',
-    DEFAULT: 'camera-photo-symbolic'
+	EJECTED: 'camera-photo-symbolic',
+	INSERTED: 'camera-hardware-disabled-symbolic',
+	ATTACHED: 'camera-photo-symbolic',
+	DETACHED: 'camera-hardware-disabled-symbolic',
+	DEFAULT: 'camera-photo-symbolic'
 };
 
 const COLOR_HIGHLIGHT = '#3D7FFF';
@@ -70,14 +70,14 @@ class CameraIndicator extends PanelMenu.Button {
 		});
 
 		this._icon_box = new St.BoxLayout({
-		  style_class: 'panel-status-menu-box',
+			style_class: 'panel-status-menu-box',
 		});
 
 		this._icon_box.add_child(this.icon);
 		this.add_child(this._icon_box);
 
 		this.opacity = 0;
-    this.reactive = false;
+		this.reactive = false;
 	}
 
 	destroy() {
@@ -91,43 +91,43 @@ class CameraIndicator extends PanelMenu.Button {
 	show_indicator({ durationSeconds = CAMERA_NOTIFICATION_DURATION, bgColor = null, color = null, iconName = null} = {}) {
 		if (iconName) this.icon.icon_name = iconName;
 		this.set_style(`
-      background-color: ${bgColor};
-      color: ${color};
-      transition-duration: 0ms;
-    `);
+			background-color: ${bgColor};
+			color: ${color};
+			transition-duration: 0ms;
+		`);
 
 		this.opacity = 255;
-    this.reactive = true;
+		this.reactive = true;
 
-        if (this._timeout !== null) {
+		if (this._timeout !== null) {
 			GLib.Source.remove(this._timeout);
 		}
 
 		this._timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, durationSeconds, () => {
 			this._timeout = null;
 			this.opacity = 0;
-      this.reactive = false;
- 			this.set_style(null);
+			this.reactive = false;
+			this.set_style(null);
 			this.icon.icon_name = CAMERA_ICONS.DEFAULT;
 			return GLib.SOURCE_REMOVE;
 		});
 	}
 
 	show_info(iconName = null) {
-    this.show_indicator({ iconName: iconName });
+		this.show_indicator({ iconName: iconName });
 	}
 
 	show_highlight(iconName = null) {
-    this.show_indicator({ bgColor: COLOR_HIGHLIGHT, iconName: iconName });
+		this.show_indicator({ bgColor: COLOR_HIGHLIGHT, iconName: iconName });
 	}
 
-    show_hint(iconName = null) {
-    this.show_indicator({ bgColor: COLOR_HINT, iconName: iconName });
+	show_hint(iconName = null) {
+		this.show_indicator({ bgColor: COLOR_HINT, iconName: iconName });
 	}
 
-  show_warning(iconName = null) {
-    this.show_indicator({ durationSeconds: 10, bgColor: COLOR_WARNING, iconName: iconName });
-  }
+	show_warning(iconName = null) {
+		this.show_indicator({ durationSeconds: 10, bgColor: COLOR_WARNING, iconName: iconName });
+	}
 });
 
 const HuaweiWmiIndicator = GObject.registerClass(
@@ -273,26 +273,26 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 	_camera_ejected() {
 		this._show_osd(CAMERA_ICONS.EJECTED, _("Camera ejected"));
 
-    if (this._camera_hint_timeout === null) {
-      let isGlowVisible = true;
-      Main.panel._centerBox.set_style(BLUE_GLOW_STYLE);
+		if (this._camera_hint_timeout === null) {
+			let isGlowVisible = true;
+			Main.panel._centerBox.set_style(BLUE_GLOW_STYLE);
 
-      this._camera_blink_timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, BLUE_GLOW_BLINKING_INTERVAL, () => {
-          isGlowVisible = !isGlowVisible;
-          Main.panel._centerBox.set_style(isGlowVisible ? BLUE_GLOW_STYLE : null);
-          return GLib.SOURCE_CONTINUE;
-      });
+			this._camera_blink_timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, BLUE_GLOW_BLINKING_INTERVAL, () => {
+				isGlowVisible = !isGlowVisible;
+				Main.panel._centerBox.set_style(isGlowVisible ? BLUE_GLOW_STYLE : null);
+				return GLib.SOURCE_CONTINUE;
+			});
 
 			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, CAMERA_NOTIFICATION_DURATION, () => {
 				if (this._camera_blink_timer) {
-          GLib.Source.remove(this._camera_blink_timer);
-          this._camera_blink_timer = null;
-        }
+					GLib.Source.remove(this._camera_blink_timer);
+					this._camera_blink_timer = null;
+				}
 				this._camera_hint_timeout = null;
 				Main.panel._centerBox.set_style(null);
 
-        this._camera_indicator?.show_warning(CAMERA_ICONS.EJECTED);
-        this._show_osd(CAMERA_ICONS.EJECTED, _("No Camera detected"));
+				this._camera_indicator?.show_warning(CAMERA_ICONS.EJECTED);
+				this._show_osd(CAMERA_ICONS.EJECTED, _("No Camera detected"));
 
 				return GLib.SOURCE_REMOVE;
 			});
@@ -312,7 +312,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		if (this._camera_blink_timer) {
 			GLib.Source.remove(this._camera_blink_timer);
 			this._camera_blink_timer = null;
-    }
+		}
 
 		Main.panel._centerBox.set_style(null);
 
@@ -342,7 +342,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 
 		this._camera_indicator?.show_hint(CAMERA_ICONS.DETACHED);
 
-  		if (this._camera_hint_timeout === null) {
+		if (this._camera_hint_timeout === null) {
 			this._camera_hint_timeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, CAMERA_NOTIFICATION_DURATION, () => {
 				this._camera_hint_timeout = null;
 				this._camera_indicator?.show_warning(CAMERA_ICONS.DETACHED);
@@ -527,8 +527,8 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 
 export default class HuaweiWmiExtension extends Extension {
 	enable() {
-	  this._camera_indicator = new CameraIndicator();
-	  Main.panel.addToStatusArea(this.uuid + '-camera', this._camera_indicator, -1, 'center');
+		this._camera_indicator = new CameraIndicator();
+		Main.panel.addToStatusArea(this.uuid + '-camera', this._camera_indicator, -1, 'center');
 
 		this._camera_indicator_dummy = new CameraIndicator();
 		Main.panel.addToStatusArea(this.uuid + '-camera-dummy', this._camera_indicator_dummy, 0, 'center');
