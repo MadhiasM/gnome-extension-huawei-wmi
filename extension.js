@@ -38,7 +38,7 @@ const GERMAN_TRANSLATIONS = {
 	"Travel": "Reise",
 	"Disabled": "Deaktiviert",
 	"Custom": "Benutzerdefiniert",
-	"Battery mode": "Batterielademodus",
+	"Battery mode": "Akkumodus",
 	"Fn-Lock": "Fn-Sperre",
 	"Top off battery": "Batterie vollständig laden",
 	"Power unlock": "Power-Unlock",
