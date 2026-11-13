@@ -196,7 +196,9 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._bpm_items = new Map();
 		for (let name in BPM_PROFILES) {
 			let [low, high] = BPM_PROFILES[name];
-			let item = new PopupMenu.PopupImageMenuItem(`${_t(name)} (${low}%-${high}%)`, '');
+			let item = new PopupMenu.PopupImageMenuItem(
+				`${_t(name)} (${low}%-${high}%)`,
+				this._get_bpm_icon(name));
 			item.connect('activate', () => this._set_bpm(low, high));
 			this._battery_section.addMenuItem(item);
 			this._bpm_items.set(name, item);
