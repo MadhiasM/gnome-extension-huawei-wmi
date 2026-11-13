@@ -12,6 +12,7 @@ import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -23,6 +24,37 @@ const BPM_PROFILES = {
 	"Travel": [95, 100],
 	"Disabled": [0, 100],
 };
+
+const BPM_ICON_NAMES = {
+	"Disabled": "battery-full-symbolic",
+	"Travel": "battery-good-symbolic",
+	"Work": "battery-medium-symbolic",
+	"Home": "battery-low-symbolic",
+};
+
+const GERMAN_TRANSLATIONS = {
+	"Home": "Zuhause",
+	"Work": "Arbeit",
+	"Travel": "Reise",
+	"Disabled": "Deaktiviert",
+	"Custom": "Benutzerdefiniert",
+	"Battery mode": "Akkumodus",
+	"Fn-Lock": "Fn-Sperre",
+	"Top off battery": "Batterie vollständig laden",
+	"Power unlock": "Power-Unlock",
+	"Unavailable": "Nicht verfügbar",
+};
+
+function _t(text) {
+	let translated = _(text);
+	if (translated !== text)
+		return translated;
+
+	if (GLib.get_language_names().some(language => language.startsWith('de')))
+		return GERMAN_TRANSLATIONS[text] ?? text;
+
+	return text;
+}
 
 const NonClosingPopupSwitchMenuItem = GObject.registerClass(
 class NonClosingPopupSwitchMenuItem extends PopupMenu.PopupSwitchMenuItem {
@@ -131,10 +163,11 @@ class CameraIndicator extends PanelMenu.Button {
 });
 
 const HuaweiWmiIndicator = GObject.registerClass(
-class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system battery menu?
-	_init(path, settings) {
-		super._init(0.0, _("Huawei WMI controls"));
+class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
+	_init(settings) {
+		super._init();
 
+		this._settings = settings;
 		this._battery_watching = false;
 		this._topping_off = false;
 		this._fn_led = false;
@@ -143,63 +176,70 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		this._file_sys_str = "/sys/devices/platform/huawei-wmi/charge_control_thresholds";
 		this._file_def_str = "/etc/default/huawei-wmi/charge_control_thresholds";
 
-		this._icon_gear = Gio.icon_new_for_string(`${path}/gear-symbolic.svg`);
-		this._icon_gear_lock = Gio.icon_new_for_string(`${path}/gear-lock-symbolic.svg`);
-
-		let hbox = this._icon_box = new St.BoxLayout({style_class: 'panel-status-menu-box'}); {
-			let icon = this.icon = new St.Icon({
-				gicon: this._icon_gear,
-				style_class: 'system-status-icon',
-			});
-			hbox.add_child(icon);
-		}; this.add_child(hbox);
-
-		let bpm = this._bpm = new PopupMenu.PopupSubMenuMenuItem(this._BPM = _("Battery protection mode")); {
-			for (let name in BPM_PROFILES) {
-				let [low, high] = BPM_PROFILES[name];
-				let mi = new PopupMenu.PopupMenuItem(`${_(name)} (${low}%-${high}%)`); {
-					mi.connect('activate', () => this._set_bpm(low, high));;
-				}; bpm.menu.addMenuItem(mi);
-			}
-
-			// TODO: Custom
-		}; this.menu.addMenuItem(bpm);
-
-		let top_off = this._top_off = new NonClosingPopupSwitchMenuItem(_("Top off battery"), false); {
-			top_off.connect('toggled', (item, state) => this._set_top_off(state));
-		}; this.menu.addMenuItem(top_off);
-
-		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-		let fn_lock = this._fn_lock = new NonClosingPopupSwitchMenuItem(_("Fn-Lock"), false); {
-			fn_lock.connect('toggled', (item, state) => this._set_fn_lock(state));
-		}; this.menu.addMenuItem(fn_lock);
-
-		let power_unlock = this._power_unlock = new NonClosingPopupSwitchMenuItem(_("Power unlock"), false); {
-			power_unlock.connect('toggled', (item, state) => this._set_power_unlock(state));
-		}; this.menu.addMenuItem(power_unlock);
-
-		this.connect('enter-event', () => this._update());
-		this.connect('button-press-event', () => this._update());
-		this.connect('key-press-event', () => this._update());
-		this.menu.connect('open-state-changed', () => {
-			if (this._bpm.sensitive) this._bpm.activate();
+		this._fn_toggle = new QuickSettings.QuickToggle({
+			title: _t("Fn-Lock"),
+			iconName: 'preferences-desktop-keyboard-shortcuts-symbolic',
+			toggleMode: true,
 		});
+		this._fn_toggle.connect('clicked', () => this._set_fn_lock(this._fn_toggle.checked));
 
+		this._battery_toggle = new QuickSettings.QuickMenuToggle({
+			title: _t("Battery mode"),
+			iconName: 'battery-symbolic',
+			menuEnabled: true,
+			toggleMode: true,
+		});
+		this._battery_toggle.gicon = this._get_bpm_icon("Disabled");
+		this._battery_toggle.connect('clicked', () => this._cycle_bpm());
+		this._battery_section = new PopupMenu.PopupMenuSection();
+		this._battery_toggle.menu.addMenuItem(this._battery_section);
+		this._bpm_items = new Map();
+		for (let name in BPM_PROFILES) {
+			let [low, high] = BPM_PROFILES[name];
+			let item = new PopupMenu.PopupImageMenuItem(
+				`${_t(name)} (${low}%-${high}%)`,
+				this._get_bpm_icon(name));
+			item.connect('activate', () => this._set_bpm(low, high));
+			this._battery_section.addMenuItem(item);
+			this._bpm_items.set(name, item);
+		}
+
+		this._battery_section.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+		this._top_off = new NonClosingPopupSwitchMenuItem(_t("Top off battery"), false);
+		this._top_off.connect('toggled', (item, state) => this._set_top_off(state));
+		this._battery_section.addMenuItem(this._top_off);
+		this._power_unlock = new NonClosingPopupSwitchMenuItem(_t("Power unlock"), false);
+		this._power_unlock.connect('toggled', (item, state) => this._set_power_unlock(state));
+		this._battery_section.addMenuItem(this._power_unlock);
+
+		this.quickSettingsItems.push(this._fn_toggle, this._battery_toggle);
 		this._fullscreen_changed_s = Display.connect('in-fullscreen-changed', this._fullscreen_changed.bind(this));
-
 		this._fn_led_timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 250, () => this._update_fn_led() || true);
-
 		this._camera_hint_timeout = null;
 		this._camera_glow_timer = null;
 
 		this._bind_keys(settings);
-
+		this._settings_changed_s = [];
+		for (let key of ['show-fn-lock-tile', 'show-battery-mode-tile']) {
+			if (this._has_setting(key))
+				this._settings_changed_s.push(settings.connect(`changed::${key}`, () => this._update_visibility()));
+		}
+		this._update_visibility();
 		this._update();
 	}
 
 	destroy() {
+		let quickSettings = Main.panel.statusArea.quickSettings;
+		for (let item of this.quickSettingsItems) {
+			if (typeof quickSettings.menu.removeMenuItem === 'function')
+				quickSettings.menu.removeMenuItem(item);
+			else
+				item.destroy();
+		}
+		this.quickSettingsItems = [];
+
 		this._unbind_keys();
+		for (let id of this._settings_changed_s ?? []) this._settings.disconnect(id);
 
 		if (this._fullscreen_changed_s !== null) Display.disconnect(this._fullscreen_changed_s);
 		if (this._fn_led_timeout !== null) GLib.Source.remove(this._fn_led_timeout);
@@ -211,7 +251,7 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 	}
 
 	_bind_keys(settings) {
-		Main.wm.addKeybinding('hwmi-config', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.menu.toggle.bind(this.menu));
+		Main.wm.addKeybinding('hwmi-config', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => Main.panel.toggleQuickSettings());
 		Main.wm.addKeybinding('hwmi-power-unlock', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._key_power_unlock.bind(this));
 		Main.wm.addKeybinding('hwmi-camera-attached', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._camera_attached.bind(this));
 		Main.wm.addKeybinding('hwmi-camera-detached', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this._camera_detached.bind(this));
@@ -352,6 +392,35 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		}
 	}
 
+	_cycle_bpm() {
+		let current = this._current_bpm_name;
+		let names = Object.keys(BPM_PROFILES);
+		let next = names[(Math.max(0, names.indexOf(current)) + 1) % names.length];
+		let [low, high] = BPM_PROFILES[next];
+		this._set_bpm(low, high);
+	}
+
+	_update_visibility() {
+		this._fn_toggle.visible = this._get_setting_boolean('show-fn-lock-tile');
+		this._battery_toggle.visible = this._get_setting_boolean('show-battery-mode-tile');
+	}
+
+	_has_setting(key) {
+		return this._settings.settings_schema.has_key(key);
+	}
+
+	_get_setting_boolean(key) {
+		return !this._has_setting(key) || this._settings.get_boolean(key);
+	}
+
+	_get_bpm_icon(mode) {
+		let iconName = BPM_ICON_NAMES[mode] ?? BPM_ICON_NAMES.Work;
+		let iconPath = `/usr/share/icons/Zorin/scalable/status/${iconName}.svg`;
+		if (Gio.File.new_for_path(iconPath).query_exists(null))
+			return Gio.icon_new_for_string(iconPath);
+		return Gio.ThemedIcon.new(iconName);
+	}
+
 	_update() {
 		this._set_bpm();
 		this._set_fn_lock();
@@ -372,7 +441,8 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 
 		if (on != this._fn_led) {
 			this._fn_led = on;
-			this.icon.set_gicon(on?this._icon_gear_lock:this._icon_gear);
+			this._fn_toggle.icon_name = on ? 'preferences-desktop-keyboard-shortcuts-symbolic' : 'preferences-desktop-keyboard-shortcuts-symbolic';
+			this._fn_toggle.checked = Boolean(on);
 			this._show_osd('preferences-desktop-keyboard-shortcuts-symbolic', _(`Fn-Lock ${on?'on':'off'}`));
 		}
 	}
@@ -390,12 +460,19 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		try {
 			[low, high] = new TextDecoder().decode(_file_sys.load_contents(null)[1]).split(' ').map(Number);
 		} catch (e) {
-			this._bpm.setSensitive(false);
-			this._bpm.label.set_text(this._BPM);
+			this._battery_toggle.sensitive = false;
+			this._battery_toggle.subtitle = _t("Unavailable");
 			return;
 		}
-		this._bpm.setSensitive(true);
-		this._bpm.label.set_text(this._BPM + `: ${low}%-${high}%`);
+		this._battery_toggle.sensitive = true;
+		let activeName = Object.entries(BPM_PROFILES).find(([, limits]) => limits[0] === low && limits[1] === high)?.[0] ?? 'Custom';
+		this._current_bpm_name = activeName;
+		this._battery_toggle.gicon = this._get_bpm_icon(activeName);
+		this._battery_toggle.subtitle = _t(activeName);
+		this._battery_toggle.checked = activeName !== 'Disabled';
+		for (let [name, item] of this._bpm_items)
+			item.setOrnament(name === activeName ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+
 	}
 
 	_update_top_off() {
@@ -499,11 +576,11 @@ class HuaweiWmiIndicator extends PanelMenu.Button { // TODO: move to system batt
 		try {
 			state = Boolean(Number(new TextDecoder().decode(file.load_contents(null)[1])));
 		} catch (e) {
-			this._fn_lock.setSensitive(false);
+			this._fn_toggle.sensitive = false;
 			return;
 		}
-		this._fn_lock.setSensitive(true);
-		this._fn_lock.setToggleState(state);
+		this._fn_toggle.sensitive = true;
+		this._fn_toggle.checked = state;
 	}
 
 	_set_power_unlock(state) {
@@ -533,9 +610,9 @@ export default class HuaweiWmiExtension extends Extension {
 		this._camera_indicator_dummy = new CameraIndicator();
 		Main.panel.addToStatusArea(this.uuid + '-camera-dummy', this._camera_indicator_dummy, 0, 'center');
 
-		this._indicator = new HuaweiWmiIndicator(this.path, this.getSettings());
+		this._indicator = new HuaweiWmiIndicator(this.getSettings());
 		this._indicator._camera_indicator = this._camera_indicator;
-		Main.panel.addToStatusArea(this.uuid, this._indicator);
+		Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
 	}
 
 	disable() {
