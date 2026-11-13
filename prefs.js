@@ -1,9 +1,7 @@
 import Adw from 'gi://Adw';
 
-import {
-	ExtensionPreferences,
-	gettext as _,
-} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 export default class HuaweiWmiPreferences extends ExtensionPreferences {
 	fillPreferencesWindow(window) {
