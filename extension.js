@@ -25,6 +25,13 @@ const BPM_PROFILES = {
 	"Disabled": [0, 100],
 };
 
+const BPM_ICON_NAMES = {
+	"Disabled": "battery-full-symbolic",
+	"Travel": "battery-good-symbolic",
+	"Work": "battery-medium-symbolic",
+	"Home": "battery-low-symbolic",
+};
+
 const GERMAN_TRANSLATIONS = {
 	"Home": "Zuhause",
 	"Work": "Arbeit",
@@ -181,6 +188,7 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 			menuEnabled: true,
 			toggleMode: true,
 		});
+		this._battery_toggle.gicon = this._get_bpm_icon("Disabled");
 		this._battery_toggle.connect('clicked', () => this._cycle_bpm());
 		this._battery_section = new PopupMenu.PopupMenuSection();
 		this._battery_toggle.menu.addMenuItem(this._battery_section);
@@ -402,6 +410,14 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		return !this._has_setting(key) || this._settings.get_boolean(key);
 	}
 
+	_get_bpm_icon(mode) {
+		let iconName = BPM_ICON_NAMES[mode] ?? BPM_ICON_NAMES.Work;
+		let iconPath = `/usr/share/icons/Zorin/scalable/status/${iconName}.svg`;
+		if (Gio.File.new_for_path(iconPath).query_exists(null))
+			return Gio.icon_new_for_string(iconPath);
+		return Gio.ThemedIcon.new(iconName);
+	}
+
 	_update() {
 		this._set_bpm();
 		this._set_fn_lock();
@@ -448,6 +464,7 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._battery_toggle.sensitive = true;
 		let activeName = Object.entries(BPM_PROFILES).find(([, limits]) => limits[0] === low && limits[1] === high)?.[0] ?? 'Custom';
 		this._current_bpm_name = activeName;
+		this._battery_toggle.gicon = this._get_bpm_icon(activeName);
 		this._battery_toggle.subtitle = `${_t(activeName)}: ${low}%-${high}%`;
 		this._battery_toggle.checked = activeName !== 'Disabled';
 		for (let [name, item] of this._bpm_items)
