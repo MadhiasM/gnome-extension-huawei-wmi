@@ -194,11 +194,11 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._camera_glow_timer = null;
 
 		this._bind_keys(settings);
-		this._settings_changed_s = [
-			settings.connect('changed::show-fn-lock-tile', () => this._update_visibility()),
-			settings.connect('changed::show-battery-mode-tile', () => this._update_visibility()),
-			settings.connect('changed::show-battery-settings', () => this._update_visibility()),
-		];
+		this._settings_changed_s = [];
+		for (let key of ['show-fn-lock-tile', 'show-battery-mode-tile', 'show-battery-settings']) {
+			if (this._has_setting(key))
+				this._settings_changed_s.push(settings.connect(`changed::${key}`, () => this._update_visibility()));
+		}
 		this._update_visibility();
 		this._update();
 	}
@@ -375,9 +375,17 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 	}
 
 	_update_visibility() {
-		this._fn_toggle.visible = this._settings.get_boolean('show-fn-lock-tile');
-		this._battery_toggle.visible = this._settings.get_boolean('show-battery-mode-tile');
-		this._preferences_button.visible = this._settings.get_boolean('show-battery-settings');
+		this._fn_toggle.visible = this._get_setting_boolean('show-fn-lock-tile');
+		this._battery_toggle.visible = this._get_setting_boolean('show-battery-mode-tile');
+		this._preferences_button.visible = this._get_setting_boolean('show-battery-settings');
+	}
+
+	_has_setting(key) {
+		return this._settings.settings_schema.has_key(key);
+	}
+
+	_get_setting_boolean(key) {
+		return !this._has_setting(key) || this._settings.get_boolean(key);
 	}
 
 	_update() {
@@ -419,11 +427,11 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		try {
 			[low, high] = new TextDecoder().decode(_file_sys.load_contents(null)[1]).split(' ').map(Number);
 		} catch (e) {
-			this._battery_toggle.setSensitive(false);
+			this._battery_toggle.sensitive = false;
 			this._battery_toggle.subtitle = _("Unavailable");
 			return;
 		}
-		this._battery_toggle.setSensitive(true);
+		this._battery_toggle.sensitive = true;
 		let activeName = Object.entries(BPM_PROFILES).find(([, limits]) => limits[0] === low && limits[1] === high)?.[0] ?? 'Custom';
 		this._current_bpm_name = activeName;
 		this._battery_toggle.subtitle = `${_(activeName)}: ${low}%-${high}%`;
@@ -533,10 +541,10 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		try {
 			state = Boolean(Number(new TextDecoder().decode(file.load_contents(null)[1])));
 		} catch (e) {
-			this._fn_toggle.setSensitive(false);
+			this._fn_toggle.sensitive = false;
 			return;
 		}
-		this._fn_toggle.setSensitive(true);
+		this._fn_toggle.sensitive = true;
 		this._fn_toggle.checked = state;
 	}
 

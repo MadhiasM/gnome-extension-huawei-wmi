@@ -21,9 +21,12 @@ export default class HuaweiWmiPreferences extends ExtensionPreferences {
 			subtitle: 'Show the settings button in the expanded battery mode view.',
 		});
 
-		settings.bind('show-fn-lock-tile', fnLock, 'active', 0);
-		settings.bind('show-battery-mode-tile', batteryMode, 'active', 0);
-		settings.bind('show-battery-settings', batterySettings, 'active', 0);
+		if (settings.settings_schema.has_key('show-fn-lock-tile'))
+			settings.bind('show-fn-lock-tile', fnLock, 'active', 0);
+		if (settings.settings_schema.has_key('show-battery-mode-tile'))
+			settings.bind('show-battery-mode-tile', batteryMode, 'active', 0);
+		if (settings.settings_schema.has_key('show-battery-settings'))
+			settings.bind('show-battery-settings', batterySettings, 'active', 0);
 
 		group.add(fnLock);
 		group.add(batteryMode);
