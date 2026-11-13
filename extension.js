@@ -427,7 +427,8 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._current_bpm_name = activeName;
 		this._battery_toggle.subtitle = `${_(activeName)}: ${low}%-${high}%`;
 		this._battery_toggle.checked = activeName !== 'Disabled';
-		for (let [name, item] of this._bpm_items) item.setOrnament(name === activeName ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
+		for (let [name, item] of this._bpm_items)
+			item.setOrnament(name === activeName ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
 
 	}
 
