@@ -25,6 +25,29 @@ const BPM_PROFILES = {
 	"Disabled": [0, 100],
 };
 
+const GERMAN_TRANSLATIONS = {
+	"Home": "Zuhause",
+	"Work": "Arbeit",
+	"Travel": "Reise",
+	"Disabled": "Deaktiviert",
+	"Battery mode": "Batterielademodus",
+	"Fn-Lock": "Fn-Sperre",
+	"Top off battery": "Batterie vollständig laden",
+	"Power unlock": "Power-Unlock",
+	"Unavailable": "Nicht verfügbar",
+};
+
+function _t(text) {
+	let translated = _(text);
+	if (translated !== text)
+		return translated;
+
+	if (GLib.get_language_names().some(language => language.startsWith('de')))
+		return GERMAN_TRANSLATIONS[text] ?? text;
+
+	return text;
+}
+
 const NonClosingPopupSwitchMenuItem = GObject.registerClass(
 class NonClosingPopupSwitchMenuItem extends PopupMenu.PopupSwitchMenuItem {
 	activate(event) {
@@ -146,14 +169,14 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._file_def_str = "/etc/default/huawei-wmi/charge_control_thresholds";
 
 		this._fn_toggle = new QuickSettings.QuickToggle({
-			title: _("Fn-Lock"),
+			title: _t("Fn-Lock"),
 			iconName: 'preferences-desktop-keyboard-shortcuts-symbolic',
 			toggleMode: true,
 		});
 		this._fn_toggle.connect('clicked', () => this._set_fn_lock(this._fn_toggle.checked));
 
 		this._battery_toggle = new QuickSettings.QuickMenuToggle({
-			title: _("Battery mode"),
+			title: _t("Battery mode"),
 			iconName: 'battery-symbolic',
 			menuEnabled: true,
 			toggleMode: true,
@@ -164,17 +187,17 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._bpm_items = new Map();
 		for (let name in BPM_PROFILES) {
 			let [low, high] = BPM_PROFILES[name];
-			let item = new PopupMenu.PopupMenuItem(`${_(name)} (${low}%-${high}%)`);
+			let item = new PopupMenu.PopupMenuItem(`${_t(name)} (${low}%-${high}%)`);
 			item.connect('activate', () => this._set_bpm(low, high));
 			this._battery_section.addMenuItem(item);
 			this._bpm_items.set(name, item);
 		}
 
 		this._battery_section.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-		this._top_off = new NonClosingPopupSwitchMenuItem("Top off battery", false);
+		this._top_off = new NonClosingPopupSwitchMenuItem(_t("Top off battery"), false);
 		this._top_off.connect('toggled', (item, state) => this._set_top_off(state));
 		this._battery_section.addMenuItem(this._top_off);
-		this._power_unlock = new NonClosingPopupSwitchMenuItem("Power unlock", false);
+		this._power_unlock = new NonClosingPopupSwitchMenuItem(_t("Power unlock"), false);
 		this._power_unlock.connect('toggled', (item, state) => this._set_power_unlock(state));
 		this._battery_section.addMenuItem(this._power_unlock);
 
@@ -419,13 +442,13 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 			[low, high] = new TextDecoder().decode(_file_sys.load_contents(null)[1]).split(' ').map(Number);
 		} catch (e) {
 			this._battery_toggle.sensitive = false;
-			this._battery_toggle.subtitle = _("Unavailable");
+			this._battery_toggle.subtitle = _t("Unavailable");
 			return;
 		}
 		this._battery_toggle.sensitive = true;
 		let activeName = Object.entries(BPM_PROFILES).find(([, limits]) => limits[0] === low && limits[1] === high)?.[0] ?? 'Custom';
 		this._current_bpm_name = activeName;
-		this._battery_toggle.subtitle = `${_(activeName)}: ${low}%-${high}%`;
+		this._battery_toggle.subtitle = `${_t(activeName)}: ${low}%-${high}%`;
 		this._battery_toggle.checked = activeName !== 'Disabled';
 		for (let [name, item] of this._bpm_items)
 			item.setOrnament(name === activeName ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
