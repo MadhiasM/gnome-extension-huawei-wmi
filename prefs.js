@@ -16,21 +16,14 @@ export default class HuaweiWmiPreferences extends ExtensionPreferences {
 
 		let fnLock = new Adw.SwitchRow({ title: 'Fn-Lock tile' });
 		let batteryMode = new Adw.SwitchRow({ title: 'Battery mode tile' });
-		let batterySettings = new Adw.SwitchRow({
-			title: 'Settings button',
-			subtitle: 'Show the settings button in the expanded battery mode view.',
-		});
 
 		if (settings.settings_schema.has_key('show-fn-lock-tile'))
 			settings.bind('show-fn-lock-tile', fnLock, 'active', 0);
 		if (settings.settings_schema.has_key('show-battery-mode-tile'))
 			settings.bind('show-battery-mode-tile', batteryMode, 'active', 0);
-		if (settings.settings_schema.has_key('show-battery-settings'))
-			settings.bind('show-battery-settings', batterySettings, 'active', 0);
 
 		group.add(fnLock);
 		group.add(batteryMode);
-		group.add(batterySettings);
 		page.add(group);
 		window.add(page);
 	}

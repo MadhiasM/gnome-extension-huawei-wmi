@@ -133,11 +133,10 @@ class CameraIndicator extends PanelMenu.Button {
 
 const HuaweiWmiIndicator = GObject.registerClass(
 class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
-	_init(settings, uuid) {
+	_init(settings) {
 		super._init();
 
 		this._settings = settings;
-		this._uuid = uuid;
 		this._battery_watching = false;
 		this._topping_off = false;
 		this._fn_led = false;
@@ -179,14 +178,6 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._power_unlock.connect('toggled', (item, state) => this._set_power_unlock(state));
 		this._battery_section.addMenuItem(this._power_unlock);
 
-		this._preferences_button = new St.Button({
-			child: new St.Icon({ icon_name: 'emblem-system-symbolic', style_class: 'popup-menu-icon' }),
-			style_class: 'button',
-			accessible_name: _("Huawei WMI Settings"),
-		});
-		this._battery_toggle.menu.addHeaderSuffix(this._preferences_button);
-		this._preferences_button.connect('clicked', () => this._open_preferences());
-
 		this.quickSettingsItems.push(this._fn_toggle, this._battery_toggle);
 		this._fullscreen_changed_s = Display.connect('in-fullscreen-changed', this._fullscreen_changed.bind(this));
 		this._fn_led_timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 250, () => this._update_fn_led() || true);
@@ -195,7 +186,7 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 
 		this._bind_keys(settings);
 		this._settings_changed_s = [];
-		for (let key of ['show-fn-lock-tile', 'show-battery-mode-tile', 'show-battery-settings']) {
+		for (let key of ['show-fn-lock-tile', 'show-battery-mode-tile']) {
 			if (this._has_setting(key))
 				this._settings_changed_s.push(settings.connect(`changed::${key}`, () => this._update_visibility()));
 		}
@@ -204,6 +195,15 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 	}
 
 	destroy() {
+		let quickSettings = Main.panel.statusArea.quickSettings;
+		for (let item of this.quickSettingsItems) {
+			if (typeof quickSettings.menu.removeMenuItem === 'function')
+				quickSettings.menu.removeMenuItem(item);
+			else
+				item.destroy();
+		}
+		this.quickSettingsItems = [];
+
 		this._unbind_keys();
 		for (let id of this._settings_changed_s ?? []) this._settings.disconnect(id);
 
@@ -366,18 +366,9 @@ class HuaweiWmiIndicator extends QuickSettings.SystemIndicator {
 		this._set_bpm(low, high);
 	}
 
-	_open_preferences() {
-		Main.panel.closeQuickSettings();
-		Gio.DBus.session.call('org.gnome.Shell.Extensions', '/org/gnome/Shell/Extensions',
-			'org.gnome.Shell.Extensions', 'OpenExtensionPrefs',
-			new GLib.Variant('(ssa{sv})', [this._uuid, '', {}]),
-			null, Gio.DBusCallFlags.NONE, -1, null, null);
-	}
-
 	_update_visibility() {
 		this._fn_toggle.visible = this._get_setting_boolean('show-fn-lock-tile');
 		this._battery_toggle.visible = this._get_setting_boolean('show-battery-mode-tile');
-		this._preferences_button.visible = this._get_setting_boolean('show-battery-settings');
 	}
 
 	_has_setting(key) {
@@ -575,7 +566,7 @@ export default class HuaweiWmiExtension extends Extension {
 		this._camera_indicator_dummy = new CameraIndicator();
 		Main.panel.addToStatusArea(this.uuid + '-camera-dummy', this._camera_indicator_dummy, 0, 'center');
 
-		this._indicator = new HuaweiWmiIndicator(this.getSettings(), this.uuid);
+		this._indicator = new HuaweiWmiIndicator(this.getSettings());
 		this._indicator._camera_indicator = this._camera_indicator;
 		Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
 	}

@@ -41,9 +41,5 @@
 			<summary>Show the battery mode Quick Settings tile</summary>
 		</key>
 
-		<key name="show-battery-settings" type="b">
-			<default>true</default>
-			<summary>Show the settings button in the battery mode tile</summary>
-		</key>
 	</schema>
 </schemalist>
